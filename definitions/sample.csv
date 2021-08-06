@@ -1,0 +1,10 @@
+schema_version: 1
+---
+name  ,    num_partitions, replication_factor
+topic1,    1              , 1
+topic2,    1              , 1
+example_topic2,    2              , 1
+---
+principal,  resource_type,  resource_name,   pattern_type, operation, permission_type, host
+User:Alice, topic, topic1, literal, write, allow, *
+User:Bob,   topic, topic,  prefixed, all, allow, *

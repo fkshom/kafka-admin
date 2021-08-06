@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "kafka-admin"
+version = "0.1.0"
+description = ""
+authors = ["Shoma FUKUDA <fkshom@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+kafka-python = "^2.0.2"
+click = "^8.0.1"
+PyYAML = "^5.4.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.4"
+pytest-watch = "^4.2.0"
+
+[tool.poetry.scripts]
+kafka-admin = "kafka-admin.cli:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

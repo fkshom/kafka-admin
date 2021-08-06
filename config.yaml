@@ -1,0 +1,10 @@
+default_profile: profile1
+
+profiles:
+  profile1:
+    bootstrap_servers:
+      - localhost:19092
+    security_protocol: SASL_SSL
+    sasl_mechanism: PLAIN
+    sasl_plain_username: USER
+    sasl_plain_password: PASS
