@@ -106,7 +106,16 @@ class KafkaTopicStoreAdapter():
     def list(self) -> Topics:
         topics = self.client.describe_topics(topics=None)
         return Topics().load_from_topic_objects(topics)
-
+        # [{'error_code': 0,
+        #  'is_internal': False,
+        #  'partitions': [{'error_code': 0,
+        #                  'isr': [1],
+        #                  'leader': 1,
+        #                  'offline_replicas': [],
+        #                  'partition': 0,
+        #                  'replicas': [1]}],
+        #  'topic': 'example_topic1'}]
+        
     def add(self, topics):
         new_topics = []
         for topic in topics:
@@ -116,12 +125,15 @@ class KafkaTopicStoreAdapter():
                 replication_factor=topic.replication_factor
             ))
         return self.client.create_topics(new_topics=new_topics, validate_only=False)
+        # CreateTopicsResponse_v3(throttle_time_ms=0, topic_errors=[(topic='example_topic1', error_code=0, error_message=None)])
 
     def delete(self, topics):
         delete_topic_names = []
         for topic in topics:
             delete_topic_names.append(topic.name)
         return self.client.delete_topics(delete_topic_names)
+        # DeleteTopicsResponse_v3(throttle_time_ms=0, topic_error_codes=[(topic='example_topic1', error_code=0)])
+        # delete.topic.enable=true
 
 class Acls(list):
     def __init__(self, *args) -> None:

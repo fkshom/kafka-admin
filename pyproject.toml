@@ -9,10 +9,12 @@ python = "^3.8"
 kafka-python = "^2.0.2"
 click = "^8.0.1"
 PyYAML = "^5.4.1"
+click-log = "^0.3.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"
 pytest-watch = "^4.2.0"
+flake8 = "^3.9.2"
 
 [tool.poetry.scripts]
 kafka-admin = "kafka-admin.cli:main"

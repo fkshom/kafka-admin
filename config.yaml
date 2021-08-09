@@ -6,5 +6,5 @@ profiles:
       - localhost:19092
     security_protocol: SASL_SSL
     sasl_mechanism: PLAIN
-    sasl_plain_username: USER
-    sasl_plain_password: PASS
+    sasl_plain_username: kafkaadmin
+    sasl_plain_password: kafkaadmin-pass
