@@ -31,11 +31,11 @@ def create_admin_client(profilename=None):
     context.verify_mode = ssl.CERT_NONE
     admin_client = KafkaAdminClient(
         bootstrap_servers=config.bootstrap_servers,
-        sasl_mechanism=config.sasl_mechanism,
         security_protocol=config.security_protocol,
-        sasl_plain_username=config.sasl_plain_username,
-        sasl_plain_password=config.sasl_plain_password,
-        ssl_context=context,
+        # sasl_mechanism=config.sasl_mechanism,
+        # sasl_plain_username=config.sasl_plain_username,
+        # sasl_plain_password=config.sasl_plain_password,
+        # ssl_context=context,
     )
     return admin_client
 
@@ -183,12 +183,62 @@ def list_command(detail):
     from kafka_admin.pyfixedwidths import FixedWidthFormatter
 
     if not detail:
-        pp(consumer_groups)
+        logger.debug(consumer_groups)
+        print(consumer_groups)
+        # [('console-consumer-11249', 'consumer')]
     else:
-        consumer_group_ids = list(map(lambda x: x.id, consumer_groups))
+        consumer_group_ids = list(map(lambda x: x[0], consumer_groups))
         consumer_group_details = admin_client.describe_consumer_groups(consumer_group_ids)
-        pp(consumer_group_details)
-        # データ構造不明
+        logger.debug(consumer_group_details)
+
+        consumer_group_detail_dicts = []
+        for consumer_group_detail in consumer_group_details:
+            if len(consumer_group_detail.members) == 0:
+                consumer_group_detail_dicts.append(dict(
+                    error_code=consumer_group_detail.error_code,
+                    group=consumer_group_detail.group,
+                    state=consumer_group_detail.state,
+                    protocol_type=consumer_group_detail.protocol_type,
+                    protocol=consumer_group_detail.protocol,
+                    client_id="",
+                    client_host="",
+                    subscription="",
+                    topic="",
+                    partitions="",
+                ))
+            else:
+                for member_info in consumer_group_detail.members:
+                    for assignment in member_info.member_assignment.assignment:
+                        consumer_group_detail_dicts.append(dict(
+                            error_code=consumer_group_detail.error_code,
+                            group=consumer_group_detail.group,
+                            state=consumer_group_detail.state,
+                            protocol_type=consumer_group_detail.protocol_type,
+                            protocol=consumer_group_detail.protocol,
+                            client_id=member_info.client_id,
+                            client_host=member_info.client_host,
+                            topic=assignment[0],
+                            partitions=str(assignment[1])
+                        ))
+
+        fwf = FixedWidthFormatter()
+        print(fwf.from_dict(consumer_group_detail_dicts).to_text())
+        # [GroupInformation(
+        #  error_code=0, group='console-consumer-11249', state='Stable', protocol_type='consumer', protocol='range',
+        #  members=[MemberInformation(
+        #    member_id='consumer-console-consumer-11249-1-2f1337f6-eef3-4272-ad70-e6cf98fdb0f6',
+        #    client_id='consumer-console-consumer-11249-1', client_host='/127.0.0.1',
+        #    member_metadata=ConsumerProtocolMemberMetadata(version=1, subscription=['unko1'], user_data=None),
+        #    member_assignment=ConsumerProtocolMemberAssignment(
+        #      version=1, assignment=[(topic='unko1', partitions=[0])],
+        #      user_data=None)
+        #  )],
+        #  authorized_operations=None)]
+
+        # [GroupInformation(
+        #  error_code=0, group='console-consumer-11249', state='Empty', protocol_type='consumer', protocol='',
+        #  members=[],
+        #  authorized_operations=None)]
 
 @cmd.group()
 def acl():
@@ -257,6 +307,56 @@ def list_command():
 def diff():
     pass
 
+@acl.command()
+@click.option('--check', is_flag=True, default=False, help='check mode')
+def clear(check):
+
+    admin_client = create_admin_client()
+    adapter = KafkaAclStoreAdapter(client=admin_client)
+
+    store = DefinitionStore()
+    new_acls = store.acls
+    cur_acls = adapter.list()
+
+    acls_marked_add = new_acls - cur_acls
+    acls_marked_del = cur_acls - new_acls
+
+    click.secho('Will be added', fg='green')
+    print(acls_marked_add.to_csv())
+    click.secho('Will be deleted', fg='green')
+    print(acls_marked_del.to_csv())
+
+    cur_acls = reorder_cur_acls(new_acls, cur_acls)
+    click.secho('diff', fg='green')
+
+    import os
+    import subprocess
+    import tempfile
+    with tempfile.TemporaryDirectory() as dname:
+        with open(os.path.join(dname, "broker.txt"), "w") as f:
+            print(cur_acls.to_csv(), file=f)
+        with open(os.path.join(dname, "csv.txt"), "w") as f:
+            print(new_acls.to_csv(), file=f)
+
+        proc = subprocess.run([
+                'diff', '-u', '--color=always', '--ignore-all-space',
+                os.path.join(dname, "broker.txt"), os.path.join(dname, "csv.txt")
+            ],
+            encoding='utf-8', stdout=subprocess.PIPE)
+        print(proc.stdout)
+
+    if check:
+        click.secho('Check mode', fg='blue')
+    else:
+        click.secho("Result of addition", fg='green')
+        result = adapter.add(acls_marked_add)
+        pp(result)
+
+        click.secho("Result of deletion", fg='green')
+        result = adapter.delete(acls_marked_del)
+        pp(result)
+
+    click.secho('Finish', fg='green')
 
 def reorder_cur_acls(new_acls, cur_acls):
     result_cur_acls = Acls()

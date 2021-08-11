@@ -85,9 +85,12 @@ class Topics(list):
                         replication_factor=topic.replication_factor if idx == 0 else "",
                         partition_id=partition['partition'],
                         leader=partition['leader'],
-                        replicas=f"[{ ','.join(list(map(str, partition['replicas']))) }]",
-                        isr=f"[{ ','.join(list(map(str, partition['isr']))) }]",
-                        offline_replicas=f"[{ ','.join(list(map(str, partition['offline_replicas']))) }]",
+                        # replicas=f"[{ ','.join(list(map(str, partition['replicas']))) }]",
+                        # isr=f"[{ ','.join(list(map(str, partition['isr']))) }]",
+                        # offline_replicas=f"[{ ','.join(list(map(str, partition['offline_replicas']))) }]",
+                        replicas=str(partition['replicas']),
+                        isr=str(partition['isr']),
+                        offline_replicas=str(partition['offline_replicas']),
                         error_code=partition['error_code'],
                     ))
             else:
@@ -138,6 +141,7 @@ class KafkaTopicStoreAdapter():
 class Acls(list):
     def __init__(self, *args) -> None:
         super().__init__(args)
+        # self._headers = ['principal', 'resource_type', 'resource_name', 'pattern_type', 'operation', 'permission_type', 'host']
 
     def __sub__(self, other) -> Acls:
         return self.__class__(*[item for item in self if item not in other])
