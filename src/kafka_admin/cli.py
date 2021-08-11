@@ -7,7 +7,14 @@ from kafka.admin.acl_resource import ACL, ACLFilter, ACLOperation, ACLPermission
 from kafka.admin.client import KafkaAdminClient
 import kafka
 
-from kafka_admin.definition_store import KafkaAclStoreAdapter, DefinitionStore, Acls, Topics, KafkaTopicStoreAdapter
+from kafka_admin.definition_store import (
+    KafkaTopicStoreAdapter,
+    KafkaAclStoreAdapter,
+    KafkaConsumerGroupStoreAdapter,
+    KafkaConsumerGroupOffsetsStoreAdapter,
+    DefinitionStore, Acls, Topics
+)
+
 from kafka_admin.config import Config
 from pprint import pprint as pp
 from types import SimpleNamespace
@@ -176,69 +183,75 @@ def consumer_groups():
     pass
 
 @consumer_groups.command(name='list')
-@click.option('--detail', is_flag=True, default=False, help='detail mode')
-def list_command(detail):
+def list_command():
     admin_client = create_admin_client()
-    consumer_groups = admin_client.list_consumer_groups()
+    adapter = KafkaConsumerGroupStoreAdapter(client=admin_client)
+    consumer_group_details = adapter.list()
+    logger.debug(consumer_group_details)
+    consumer_group_detail_dicts = []
+
+    for consumer_group_detail in consumer_group_details:
+        if len(consumer_group_detail.members) == 0:
+            consumer_group_detail_dicts.append(dict(
+                error_code=consumer_group_detail.error_code,
+                group=consumer_group_detail.group,
+                state=consumer_group_detail.state,
+                protocol_type=consumer_group_detail.protocol_type,
+                protocol=consumer_group_detail.protocol,
+                client_id="",
+                client_host="",
+                subscription="",
+                topic="",
+                partitions="",
+            ))
+        else:
+            for member_info in consumer_group_detail.members:
+                for assignment in member_info.member_assignment.assignment:
+                    consumer_group_detail_dicts.append(dict(
+                        error_code=consumer_group_detail.error_code,
+                        consumer_group=consumer_group_detail.group,
+                        state=consumer_group_detail.state,
+                        protocol_type=consumer_group_detail.protocol_type,
+                        protocol=consumer_group_detail.protocol,
+                        client_id=member_info.client_id,
+                        client_host=member_info.client_host,
+                        topic=assignment[0],
+                        partitions=str(assignment[1])
+                    ))
+
     from kafka_admin.pyfixedwidths import FixedWidthFormatter
+    fwf = FixedWidthFormatter()
+    print(fwf.from_dict(consumer_group_detail_dicts).to_text())
 
-    if not detail:
-        logger.debug(consumer_groups)
-        print(consumer_groups)
-        # [('console-consumer-11249', 'consumer')]
-    else:
-        consumer_group_ids = list(map(lambda x: x[0], consumer_groups))
-        consumer_group_details = admin_client.describe_consumer_groups(consumer_group_ids)
-        logger.debug(consumer_group_details)
+@cmd.group()
+def consumer_group_offsets():
+    pass
 
-        consumer_group_detail_dicts = []
-        for consumer_group_detail in consumer_group_details:
-            if len(consumer_group_detail.members) == 0:
-                consumer_group_detail_dicts.append(dict(
-                    error_code=consumer_group_detail.error_code,
-                    group=consumer_group_detail.group,
-                    state=consumer_group_detail.state,
-                    protocol_type=consumer_group_detail.protocol_type,
-                    protocol=consumer_group_detail.protocol,
-                    client_id="",
-                    client_host="",
-                    subscription="",
-                    topic="",
-                    partitions="",
-                ))
-            else:
-                for member_info in consumer_group_detail.members:
-                    for assignment in member_info.member_assignment.assignment:
-                        consumer_group_detail_dicts.append(dict(
-                            error_code=consumer_group_detail.error_code,
-                            group=consumer_group_detail.group,
-                            state=consumer_group_detail.state,
-                            protocol_type=consumer_group_detail.protocol_type,
-                            protocol=consumer_group_detail.protocol,
-                            client_id=member_info.client_id,
-                            client_host=member_info.client_host,
-                            topic=assignment[0],
-                            partitions=str(assignment[1])
-                        ))
+@consumer_group_offsets.command(name='list')
+def list_command():
+    admin_client = create_admin_client()
+    adapter = KafkaConsumerGroupOffsetsStoreAdapter(client=admin_client)
+    consumer_groups_offsets_info = adapter.list()
+    logger.debug(consumer_groups_offsets_info)
 
-        fwf = FixedWidthFormatter()
-        print(fwf.from_dict(consumer_group_detail_dicts).to_text())
-        # [GroupInformation(
-        #  error_code=0, group='console-consumer-11249', state='Stable', protocol_type='consumer', protocol='range',
-        #  members=[MemberInformation(
-        #    member_id='consumer-console-consumer-11249-1-2f1337f6-eef3-4272-ad70-e6cf98fdb0f6',
-        #    client_id='consumer-console-consumer-11249-1', client_host='/127.0.0.1',
-        #    member_metadata=ConsumerProtocolMemberMetadata(version=1, subscription=['unko1'], user_data=None),
-        #    member_assignment=ConsumerProtocolMemberAssignment(
-        #      version=1, assignment=[(topic='unko1', partitions=[0])],
-        #      user_data=None)
-        #  )],
-        #  authorized_operations=None)]
+    consumer_group_offset_dicts = []
+    for consumer_groups_offset_info in consumer_groups_offsets_info:
+        consumer_group_id = consumer_groups_offset_info['consumer_group']
+        consumer_group_offsets = consumer_groups_offset_info['consumer_group_offsets']
 
-        # [GroupInformation(
-        #  error_code=0, group='console-consumer-11249', state='Empty', protocol_type='consumer', protocol='',
-        #  members=[],
-        #  authorized_operations=None)]
+        for topic_partition, offset_and_metadata in consumer_group_offsets.items():
+            consumer_group_offset_dicts.append(dict(
+                consumer_group=consumer_group_id,
+                topic=topic_partition.topic,
+                partition=topic_partition.partition,
+                offset=offset_and_metadata.offset,
+                metadata=offset_and_metadata.metadata,
+            ))
+
+    from kafka_admin.pyfixedwidths import FixedWidthFormatter
+    fwf = FixedWidthFormatter()
+    print(fwf.from_dict(consumer_group_offset_dicts).to_text())
+
 
 @cmd.group()
 def acl():
