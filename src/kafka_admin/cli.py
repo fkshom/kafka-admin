@@ -4,7 +4,8 @@ import click
 import ssl
 from click.globals import pop_context
 from kafka.admin.acl_resource import ACL, ACLFilter, ACLOperation, ACLPermissionType, ResourcePattern, ResourceType, ACLResourcePatternType, ResourcePatternFilter
-from kafka.admin.client import KafkaAdminClient
+from kafka.admin.client import KafkaAdminClient, KafkaClient
+from kafka import KafkaConsumer
 import kafka
 
 from kafka_admin.definition_store import (
@@ -45,6 +46,21 @@ def create_admin_client(profilename=None):
         # ssl_context=context,
     )
     return admin_client
+
+def create_consumer_client(profilename=None):
+    config = Config('config.yaml')
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    client = KafkaConsumer(
+        bootstrap_servers=config.bootstrap_servers,
+        security_protocol=config.security_protocol,
+        # sasl_mechanism=config.sasl_mechanism,
+        # sasl_plain_username=config.sasl_plain_username,
+        # sasl_plain_password=config.sasl_plain_password,
+        # ssl_context=context,
+    )
+    return client
 
 @click.group()
 def cmd():
@@ -103,6 +119,24 @@ def list_command():
     except Exception as e:
         print(e)
         click.secho(e, fg='red')
+
+    config = Config('config.yaml')
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    client = create_consumer_client()
+
+    print("last_positions")
+    from kafka import TopicPartition
+    for topic in topics:
+        partition_ids = client.partitions_for_topic(topic.name)
+        topic_partitions = [TopicPartition(topic.name, partition_id) for partition_id in partition_ids]
+        client.assign(topic_partitions)
+        client.seek_to_end()
+        for topic_partition in topic_partitions:
+            last_position = client.position(topic_partition)
+            print(f"{topic_partition.topic} {topic_partition.partition} {last_position}")
+
 
 def reorder_cur_topics(new_topics, cur_topics):
     result_cur_topics = Topics()
